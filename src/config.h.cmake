@@ -1,2 +1,0 @@
-#cmakedefine WINDOWS
-#cmakedefine UNIX

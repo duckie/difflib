@@ -1,9 +1,9 @@
-configure_file(config.h.cmake config.h)
-
 include_directories(
-    ${PROJECT_SOURCE_DIR}/src 
-    ${PROJECT_BINARY_DIR}/src
-	)
+  ${PROJECT_SOURCE_DIR}/src 
+  ${PROJECT_BINARY_DIR}/src
+  ${PROJECT_SOURCE_DIR}/test
+  ${PROJECT_BINARY_DIR}/test
+)
 
 set(LIBRARIES)
 
@@ -37,7 +37,7 @@ endif()
 file(GLOB SRCS_FILES *.cc)
 
 ### Exe ###
-add_executable(${PROJECT_NAME} ${SRCS_FILES}) 
+add_executable(${PROJECT_NAME}-test ${SRCS_FILES}) 
 
 ### Linking ###
-target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
+target_link_libraries(${PROJECT_NAME}-test ${LIBRARIES})

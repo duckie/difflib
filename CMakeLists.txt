@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 2.8)
 include(CheckIncludeFileCXX)
 
-project (CppProject)
+project (difflib)
 
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 
@@ -31,11 +31,6 @@ if(COMPILE_ON_LINUX)
     set(${UNIX} ON)
 endif()
 
-# Centralized version number
-include (version.cmake)
-message (STATUS "*** Building ${PROJECT_NAME} ${PROJECT_VERSION} ***")
-message (STATUS "${CMAKE_SYSTEM_NAME} detected")
-
 # Main source directory
-add_subdirectory (src)
+add_subdirectory (test)
 
