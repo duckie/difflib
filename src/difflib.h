@@ -4,6 +4,8 @@
 #include <string>
 #include <functional>
 #include <utility>
+#include <iterator>
+#include <type_traits>
 
 namespace difflib {
 
@@ -20,7 +22,19 @@ template <class T> class is_hashable_sequence {
   static bool const value = (sizeof(matcher<T>(nullptr)) == sizeof(hashable));
 };
 
+template <class T> class is_standard_iterable {
+  is_standard_iterable () = delete;
+  typedef char iterable;
+  struct not_iterable { char t[2]; };  // Ensured to work on any platform
+  template <typename C> static iterable matcher(typename C::const_iterator*);
+  template <typename C> static not_iterable matcher(...);
+
+ public:
+  static bool const value = (sizeof(matcher<T>(nullptr)) == sizeof(iterable));
+};
+
 template <class T = std::string> class SequenceMatcher {
+  static_assert(is_standard_iterable<T>::value, "The matched objects must be iterable.");
   static_assert(is_hashable_sequence<T>::value, "The matched sequences must be of hashable elements.");
  public:
   SequenceMatcher(T const& a, T const& b) : a_(a), b_(b) {}
