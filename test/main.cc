@@ -20,6 +20,6 @@ int main() {
   std::vector<std::string> vb = {"1", "4", "3"};
 
   auto foo = difflib::MakeSequenceMatcher(a,b);
-  //auto vfoo = difflib::MakeSequenceMatcher(va,vb);
+  auto vfoo = difflib::MakeSequenceMatcher(va,vb);
   return 0;
 }
