@@ -21,5 +21,18 @@ int main() {
 
   auto foo = difflib::MakeSequenceMatcher(a,b);
   auto vfoo = difflib::MakeSequenceMatcher(va,vb);
+
+  size_t a_i, b_i, size;
+  a = " abcd"; b = "abcd abcd";
+  foo.set_seq(a, b);
+  std::tie(a_i, b_i, size) = foo.find_longest_match(0, 5, 0, 9);
+  std::cout << "a=" << a_i << " b=" << b_i << " size=" << size << "\n";
+
+  auto junk = [](char const& c) { return ' ' == c; };
+  foo = difflib::MakeSequenceMatcher(a, b, junk);
+  std::tie(a_i, b_i, size) = foo.find_longest_match(0, 5, 0, 9);
+  std::cout << "a=" << a_i << " b=" << b_i << " size=" << size << "\n";
+
+  std::cout << std::flush;
   return 0;
 }
