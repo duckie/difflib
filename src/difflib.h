@@ -12,8 +12,18 @@
 #include <algorithm>
 #include <unordered_set>
 #include <tuple>
+#include <algorithm>
 
 namespace difflib {
+
+using std::list;
+using std::tuple;
+using std::make_tuple;
+using std::tie;
+
+// Exposed types
+using match_t = tuple<size_t, size_t, size_t>;
+using match_list_t = std::vector<match_t>;  // A vector to speed up copying
 
 size_t const AUTOJUNK_MIN_SIZE = 200; 
 
@@ -69,9 +79,8 @@ template <class T = std::string> class SequenceMatcher {
   using value_type = T;
   using hashable_type = typename T::value_type;
   using junk_function_type = std::function<bool(hashable_type const&)>;
-  using match_t = std::tuple<size_t, size_t, size_t>;
 
-  SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk) {
+  SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk), matching_blocks_(nullptr) {
     chain_b();
   }
 
@@ -92,6 +101,8 @@ template <class T = std::string> class SequenceMatcher {
   void set_seq2(T const& b) {
     b_ = b;
     chain_b(); 
+    delete matching_blocks_;
+    matching_blocks_ = nullptr;
   }
   
   match_t find_longest_match(size_t a_low, size_t a_high, size_t b_low, size_t b_high) {
@@ -107,7 +118,7 @@ template <class T = std::string> class SequenceMatcher {
         for(size_t j : b2j_[a_[i]]) {
           if (j < b_low) continue;
           if (j >= b_high) break;
-          size_t k = new_j2len[i] = j2len[j-1] + 1;
+          size_t k = new_j2len[j] = j2len[j-1] + 1;
           if (k > best_size) {
             best_i = i-k+1;
             best_j = j-k+1;
@@ -117,9 +128,9 @@ template <class T = std::string> class SequenceMatcher {
         j2len = std::move(new_j2len);
       }
     }
-    
-    // Extend the best by non-junk elements on each end
-    auto low_bound_test = [&best_i, &best_j, a_low, b_low, &best_size, this] (bool isjunk) {
+   
+    // Utility lambdas for factoring 
+    auto low_bound_expand = [&best_i, &best_j, a_low, b_low, &best_size, this] (bool isjunk) {
       while (
         best_i > a_low  
         && best_j > b_low 
@@ -130,7 +141,7 @@ template <class T = std::string> class SequenceMatcher {
       }
     };
 
-    auto high_bound_test = [best_i, best_j, a_high, b_high, &best_size, this] (bool isjunk) {
+    auto high_bound_expand = [best_i, best_j, a_high, b_high, &best_size, this] (bool isjunk) {
       while (
         (best_i+best_size) < a_high  
         && (best_j+best_size) < b_high 
@@ -141,14 +152,61 @@ template <class T = std::string> class SequenceMatcher {
       }
     };
 
-    low_bound_test(false);
-    high_bound_test(false);
+    // Extend the best by non-junk elements on each end
+    low_bound_expand(false);
+    high_bound_expand(false);
 
     // Adds matching junks at each end
-    low_bound_test(true);
-    high_bound_test(true);
+    low_bound_expand(true);
+    high_bound_expand(true);
 
-    return std::make_tuple(best_i, best_j, best_size);
+    return make_tuple(best_i, best_j, best_size);
+  }
+
+  match_list_t get_matching_blocks() {
+    // The following are tuple extracting aliases
+    using std::get;
+
+    //if (matching_blocks_) return *matching_blocks_;
+    //else matching_blocks_ = new match_list_t; 
+    
+    list<tuple<size_t, size_t, size_t, size_t>> queue;
+    list<match_t> matching_blocks_pass1;
+    queue.emplace_back(0, a_.size(), 0, b_.size());
+    while(queue.size()) {
+      size_t a_low, a_high, b_low, b_high;
+      tie(a_low, a_high, b_low, b_high) = queue.front();
+      queue.pop_front(); 
+      match_t m = find_longest_match(a_low, a_high, b_low, b_high);
+      if (get<2>(m)) {
+        if (a_low < get<0>(m) && b_low < get<1>(m)) {
+          queue.emplace_back(a_low, get<0>(m), b_low, get<1>(m));
+        }
+        if ((get<0>(m)+get<2>(m)) < a_high && (get<1>(m)+get<2>(m)) < b_high) {
+          queue.emplace_back(get<0>(m)+get<2>(m), a_high, get<1>(m)+get<2>(m), b_high);
+        }
+        matching_blocks_pass1.push_back(std::move(m));
+      }
+    }
+    matching_blocks_pass1.sort();
+    
+    matching_blocks_ = new match_list_t;
+    size_t i1, j1, k1;
+    i1 = j1 = k1 = 0;
+
+    for(match_t const& m : matching_blocks_pass1) {
+      if (i1 + k1 == get<0>(m) && j1 + k1 == get<1>(m)) {
+        k1 += get<2>(m);
+      }
+      else {
+        if (k1) matching_blocks_->emplace_back(i1, j1, k1);
+        std::tie(i1, j1, k1) = m;
+      }
+    }
+    if (k1) matching_blocks_->emplace_back(i1, j1, k1);
+    matching_blocks_->emplace_back(a_.length(), b_.length(), 0);
+
+    return *matching_blocks_;
   }
 
  private:
@@ -196,17 +254,18 @@ template <class T = std::string> class SequenceMatcher {
   b2j_t b2j_;
   junk_set_t junk_set_;
   junk_set_t popular_set_;
-
+  match_list_t * matching_blocks_;
 };
 
 template <class T> auto MakeSequenceMatcher(
   T const& a
   , T const& b
   , typename SequenceMatcher<T>::junk_function_type is_junk = NoJunk<typename SequenceMatcher<T>::hashable_type>
+  , bool auto_junk = false
 )
 -> SequenceMatcher<T> 
 { 
-  return SequenceMatcher<T>(a, b, is_junk);
+  return SequenceMatcher<T>(a, b, is_junk, auto_junk);
 }
 
 }
