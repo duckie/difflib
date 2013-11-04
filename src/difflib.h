@@ -204,7 +204,7 @@ template <class T = std::string> class SequenceMatcher {
       }
     }
     if (k1) matching_blocks_->emplace_back(i1, j1, k1);
-    matching_blocks_->emplace_back(a_.length(), b_.length(), 0);
+    matching_blocks_->emplace_back(a_.size(), b_.size(), 0);
 
     return *matching_blocks_;
   }
@@ -268,5 +268,20 @@ template <class T> auto MakeSequenceMatcher(
   return SequenceMatcher<T>(a, b, is_junk, auto_junk);
 }
 
-}
+}  // namespace difflib
+
+#ifdef DIFFLIB_ENABLE_EXTERN_MACROS
+#  define DIFFLIB_MAKE_EXTERN_FOR_TYPE(A)\
+      namespace difflib {\
+      extern template class SequenceMatcher<A>;\
+      extern template SequenceMatcher<A> MakeSequenceMatcher<A>(A const&, A const&, typename SequenceMatcher<A>::junk_function_type, bool);\
+      }  // namespace difflib
+
+#  define DIFFLIB_INSTANTIATE_FOR_TYPE(A)\
+      namespace difflib {\
+      template class SequenceMatcher<A>;\
+      template SequenceMatcher<A> MakeSequenceMatcher<A>(A const&, A const&, typename SequenceMatcher<A>::junk_function_type, bool);\
+      }  // namespace difflib
+#endif
+
 #endif  // __DIFFLIB__

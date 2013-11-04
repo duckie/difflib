@@ -1,8 +1,13 @@
-#include <difflib.h>
 #include <iostream>
 #include <string>
 #include <vector>
 #include <tuple>
+
+#define DIFFLIB_ENABLE_EXTERN_MACROS
+#include <difflib.h>
+
+DIFFLIB_MAKE_EXTERN_FOR_TYPE(std::string);
+DIFFLIB_MAKE_EXTERN_FOR_TYPE(std::vector<std::string>);
 
 struct Useless {};
 
