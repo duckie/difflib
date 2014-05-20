@@ -80,6 +80,10 @@ template <class T = std::string> class SequenceMatcher {
   using hashable_type = typename T::value_type;
   using junk_function_type = std::function<bool(hashable_type const&)>;
 
+  ~SequenceMatcher(){
+    if (matching_blocks_!=nullptr) delete matching_blocks_;
+  }
+
   SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk), matching_blocks_(nullptr) {
     chain_b();
   }
