@@ -75,7 +75,7 @@ int main() {
                       << b.substr(start2+length) << "\n";
   }
 
-
+  std::cout<< "\nratio: " << foo.ratio() <<"\n";  
   std::cout << std::flush;
   return 0;
 }

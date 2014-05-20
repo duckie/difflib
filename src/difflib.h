@@ -109,6 +109,15 @@ template <class T = std::string> class SequenceMatcher {
     matching_blocks_ = nullptr;
   }
   
+  double ratio(){
+    size_t sum = 0;
+    size_t length = a_.size()+b_.size();
+    if(length==0) return 1.0;
+    for(match_t  m : get_matching_blocks())
+        sum+=std::get<2>(m);
+    return 2.*sum/length;
+  } 
+  
   match_t find_longest_match(size_t a_low, size_t a_high, size_t b_low, size_t b_high) {
     size_t best_i = a_low;
     size_t best_j = b_low;
