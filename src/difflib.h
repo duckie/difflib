@@ -113,7 +113,7 @@ template <class T = std::string> class SequenceMatcher {
     size_t best_i = a_low;
     size_t best_j = b_low;
     size_t best_size = 0;
-
+    
     // Find longest junk free match
     {
       std::unordered_map<size_t, size_t> j2len;
@@ -219,10 +219,11 @@ template <class T = std::string> class SequenceMatcher {
 
   void chain_b() {
     size_t index=0;
-    
+   
     // Counting occurences
+    b2j_.clear();
     for(hashable_type const& elem : b_) b2j_[elem].push_back(index++);
-    
+        
     // Purge junk elements
     junk_set_.clear();
     for(auto it = b2j_.begin(); it != b2j_.end();) {
