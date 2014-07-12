@@ -13,6 +13,7 @@
 #include <unordered_set>
 #include <tuple>
 #include <algorithm>
+#include <memory>
 
 namespace difflib {
 
@@ -80,11 +81,7 @@ template <class T = std::string> class SequenceMatcher {
   using hashable_type = typename T::value_type;
   using junk_function_type = std::function<bool(hashable_type const&)>;
 
-  ~SequenceMatcher(){
-    if (matching_blocks_!=nullptr) delete matching_blocks_;
-  }
-
-  SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk), matching_blocks_(nullptr) {
+  SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk) {
     chain_b();
   }
 
@@ -104,8 +101,7 @@ template <class T = std::string> class SequenceMatcher {
 
   void set_seq2(T const& b) {
     b_ = b;
-    chain_b(); 
-    delete matching_blocks_;
+    chain_b();
     matching_blocks_ = nullptr;
   }
   
@@ -203,7 +199,7 @@ template <class T = std::string> class SequenceMatcher {
     }
     matching_blocks_pass1.sort();
     
-    matching_blocks_ = new match_list_t;
+    matching_blocks_.reset(new match_list_t);
     size_t i1, j1, k1;
     i1 = j1 = k1 = 0;
 
@@ -268,7 +264,7 @@ template <class T = std::string> class SequenceMatcher {
   b2j_t b2j_;
   junk_set_t junk_set_;
   junk_set_t popular_set_;
-  match_list_t * matching_blocks_;
+  std::unique_ptr<match_list_t> matching_blocks_;
 };
 
 template <class T> auto MakeSequenceMatcher(
