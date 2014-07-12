@@ -80,6 +80,10 @@ template <class T = std::string> class SequenceMatcher {
   using hashable_type = typename T::value_type;
   using junk_function_type = std::function<bool(hashable_type const&)>;
 
+  ~SequenceMatcher(){
+    if (matching_blocks_!=nullptr) delete matching_blocks_;
+  }
+
   SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk), matching_blocks_(nullptr) {
     chain_b();
   }
@@ -105,11 +109,20 @@ template <class T = std::string> class SequenceMatcher {
     matching_blocks_ = nullptr;
   }
   
+  double ratio(){
+    size_t sum = 0;
+    size_t length = a_.size()+b_.size();
+    if(length==0) return 1.0;
+    for(match_t  m : get_matching_blocks())
+        sum+=std::get<2>(m);
+    return 2.*sum/length;
+  } 
+  
   match_t find_longest_match(size_t a_low, size_t a_high, size_t b_low, size_t b_high) {
     size_t best_i = a_low;
     size_t best_j = b_low;
     size_t best_size = 0;
-
+    
     // Find longest junk free match
     {
       std::unordered_map<size_t, size_t> j2len;
@@ -215,10 +228,11 @@ template <class T = std::string> class SequenceMatcher {
 
   void chain_b() {
     size_t index=0;
-    
+   
     // Counting occurences
+    b2j_.clear();
     for(hashable_type const& elem : b_) b2j_[elem].push_back(index++);
-    
+        
     // Purge junk elements
     junk_set_.clear();
     for(auto it = b2j_.begin(); it != b2j_.end();) {

@@ -6,8 +6,8 @@
 #define DIFFLIB_ENABLE_EXTERN_MACROS
 #include <difflib.h>
 
-DIFFLIB_MAKE_EXTERN_FOR_TYPE(std::string);
-DIFFLIB_MAKE_EXTERN_FOR_TYPE(std::vector<std::string>);
+DIFFLIB_INSTANTIATE_FOR_TYPE(std::string);
+DIFFLIB_INSTANTIATE_FOR_TYPE(std::vector<std::string>);
 
 struct Useless {};
 
@@ -38,17 +38,44 @@ int main() {
   foo = difflib::MakeSequenceMatcher(a, b, junk);
   std::tie(a_i, b_i, size) = foo.find_longest_match(0, 5, 0, 9);
   std::cout << "a=" << a_i << " b=" << b_i << " size=" << size << "\n";
-
   a = "Gertrude Roger Sylvie Marcel Cunegonde";
   b = "Yvette Roger Andree Marcel Brigitte";
 
+  std::cout<<"\na = "<<a<<"\nb = "<<b<<"\n";
   foo.set_seq(a,b);
   //foo = difflib::MakeSequenceMatcher(a, b);
-
+ 
   for(difflib::match_t const& m : foo.get_matching_blocks()) {
-    std::cout << std::get<0>(m) << " " << std::get<1>(m) << " " << std::get<2>(m) << "\n";
+    size_t start1,start2,length;
+    std::tie(start1,start2,length) = m;
+    std::cout << start1 << " " << start2 << " " << length << "\n";
+    std::cout << "  -> " << a.substr(0,start1)
+                      << "("<<a.substr(start1,length)<< ")"
+                      << a.substr(start1+length) << "\n";
+    std::cout << "  -> " << b.substr(0,start2)
+                      << "("<<b.substr(start2,length)<< ")"
+                      << b.substr(start2+length) << "\n";
   }
 
+  a = "Hello Roger";
+  b = "Hello Peter";
+
+  std::cout<<"\na = "<<a<<"\nb = "<<b<<"\n";
+  foo.set_seq(a,b);
+ 
+  for(difflib::match_t const& m : foo.get_matching_blocks()) {
+    size_t start1,start2,length;
+    std::tie(start1,start2,length) = m;
+    std::cout << start1 << " " << start2 << " " << length << "\n";
+    std::cout << "  -> " << a.substr(0,start1)
+                      << "("<<a.substr(start1,length)<< ")"
+                      << a.substr(start1+length) << "\n";
+    std::cout << "  -> " << b.substr(0,start2)
+                      << "("<<b.substr(start2,length)<< ")"
+                      << b.substr(start2+length) << "\n";
+  }
+
+  std::cout<< "\nratio: " << foo.ratio() <<"\n";  
   std::cout << std::flush;
   return 0;
 }
