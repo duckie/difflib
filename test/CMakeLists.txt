@@ -38,6 +38,7 @@ file(GLOB SRCS_FILES *.cc)
 
 ### Exe ###
 add_executable(${PROJECT_NAME}-test ${SRCS_FILES}) 
+add_executable(perf01-test perf_01.cpp) 
 
 ### Linking ###
 target_link_libraries(${PROJECT_NAME}-test ${LIBRARIES})

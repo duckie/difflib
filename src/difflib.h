@@ -14,9 +14,11 @@
 #include <tuple>
 #include <algorithm>
 #include <memory>
+#include <vector>
 
 namespace difflib {
 
+using std::vector;
 using std::list;
 using std::tuple;
 using std::make_tuple;
@@ -97,6 +99,7 @@ template <class T = std::string> class SequenceMatcher {
 
   void set_seq1(T const& a) { 
     a_ = a;
+    matching_blocks_ = nullptr;
   }
 
   void set_seq2(T const& b) {
@@ -105,7 +108,7 @@ template <class T = std::string> class SequenceMatcher {
     matching_blocks_ = nullptr;
   }
   
-  double ratio(){
+  double ratio() {
     size_t sum = 0;
     size_t length = a_.size()+b_.size();
     if(length==0) return 1.0;
@@ -176,16 +179,20 @@ template <class T = std::string> class SequenceMatcher {
     // The following are tuple extracting aliases
     using std::get;
 
-    //if (matching_blocks_) return *matching_blocks_;
-    //else matching_blocks_ = new match_list_t; 
+    if (matching_blocks_)
+      return *matching_blocks_;
     
-    list<tuple<size_t, size_t, size_t, size_t>> queue;
-    list<match_t> matching_blocks_pass1;
+    vector<tuple<size_t, size_t, size_t, size_t>> queue;
+    vector<match_t> matching_blocks_pass1;
+
+    std::size_t queue_head = 0;
+    queue.reserve(std::max(a_.size(), b_.size()));
     queue.emplace_back(0, a_.size(), 0, b_.size());
-    while(queue.size()) {
+
+    while(queue_head < queue.size()) {
       size_t a_low, a_high, b_low, b_high;
-      tie(a_low, a_high, b_low, b_high) = queue.front();
-      queue.pop_front(); 
+      tie(a_low, a_high, b_low, b_high) = queue[queue_head++];
+      ++queue_head;
       match_t m = find_longest_match(a_low, a_high, b_low, b_high);
       if (get<2>(m)) {
         if (a_low < get<0>(m) && b_low < get<1>(m)) {
@@ -197,9 +204,11 @@ template <class T = std::string> class SequenceMatcher {
         matching_blocks_pass1.push_back(std::move(m));
       }
     }
-    matching_blocks_pass1.sort();
+    std::sort(std::begin(matching_blocks_pass1), end(matching_blocks_pass1));
     
     matching_blocks_.reset(new match_list_t);
+    matching_blocks_->reserve(matching_blocks_pass1.size());
+    
     size_t i1, j1, k1;
     i1 = j1 = k1 = 0;
 
