@@ -186,7 +186,7 @@ template <class T = std::string> class SequenceMatcher {
     vector<match_t> matching_blocks_pass1;
 
     std::size_t queue_head = 0;
-    queue.reserve(std::max(a_.size(), b_.size()));
+    queue.reserve(std::min(a_.size(), b_.size()));
     queue.emplace_back(0, a_.size(), 0, b_.size());
 
     while(queue_head < queue.size()) {
