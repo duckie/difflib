@@ -8,9 +8,11 @@
 #include <type_traits>
 #include <iostream>
 #include <unordered_map>
+#include <map>
 #include <list>
 #include <algorithm>
 #include <unordered_set>
+#include <set>
 #include <tuple>
 #include <algorithm>
 #include <memory>
@@ -84,6 +86,8 @@ template <class T = std::string> class SequenceMatcher {
   using junk_function_type = std::function<bool(hashable_type const&)>;
 
   SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk) {
+    j2len_.resize(b.size()+1);
+    new_j2len_.resize(b.size()+1);
     chain_b();
   }
 
@@ -104,6 +108,8 @@ template <class T = std::string> class SequenceMatcher {
 
   void set_seq2(T const& b) {
     b_ = b;
+    j2len_.resize(b.size()+1);
+    new_j2len_.resize(b.size()+1);
     chain_b();
     matching_blocks_ = nullptr;
   }
@@ -124,20 +130,21 @@ template <class T = std::string> class SequenceMatcher {
     
     // Find longest junk free match
     {
-      std::unordered_map<size_t, size_t> j2len;
+      std::fill(std::begin(j2len_)+b_low, std::begin(j2len_)+b_high-1, 0);
       for(size_t i = a_low; i < a_high; ++i) {
-        std::unordered_map<size_t, size_t> new_j2len;
+        std::fill(std::begin(new_j2len_)+b_low, std::begin(new_j2len_)+b_high, 0);
+        
         for(size_t j : b2j_[a_[i]]) {
           if (j < b_low) continue;
           if (j >= b_high) break;
-          size_t k = new_j2len[j] = j2len[j-1] + 1;
+          size_t k = new_j2len_[j+1] = j2len_[j] + 1;
           if (k > best_size) {
             best_i = i-k+1;
             best_j = j-k+1;
             best_size = k;
           }
         }
-        j2len = std::move(new_j2len);
+        j2len_ = new_j2len_;
       }
     }
    
@@ -192,7 +199,6 @@ template <class T = std::string> class SequenceMatcher {
     while(queue_head < queue.size()) {
       size_t a_low, a_high, b_low, b_high;
       tie(a_low, a_high, b_low, b_high) = queue[queue_head++];
-      ++queue_head;
       match_t m = find_longest_match(a_low, a_high, b_low, b_high);
       if (get<2>(m)) {
         if (a_low < get<0>(m) && b_low < get<1>(m)) {
@@ -228,8 +234,8 @@ template <class T = std::string> class SequenceMatcher {
   }
 
  private:
-  using b2j_t = std::unordered_map<hashable_type, std::list<size_t>>;
-  using junk_set_t = std::unordered_set<hashable_type>;
+  using b2j_t = std::map<hashable_type, std::list<size_t>>;
+  using junk_set_t = std::set<hashable_type>;
 
   void chain_b() {
     size_t index=0;
@@ -271,6 +277,8 @@ template <class T = std::string> class SequenceMatcher {
   junk_function_type is_junk_;
   bool auto_junk_;
   b2j_t b2j_;
+  std::vector<size_t> j2len_;
+  std::vector<size_t> new_j2len_;
   junk_set_t junk_set_;
   junk_set_t popular_set_;
   std::unique_ptr<match_list_t> matching_blocks_;

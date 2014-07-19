@@ -17,13 +17,27 @@ int main(int argc, char * argv[]) {
   std::string b((std::istreambuf_iterator<char>(file_b)), std::istreambuf_iterator<char>());
 
   double ratio = 0;
+  std::size_t nb_match = 0;
+  
 
-  for (int i = 0; i < 10000; ++i) {
+  for (int i = 0; i < 1000; ++i) 
+  {
     auto matcher= difflib::MakeSequenceMatcher<>(a,b);
     ratio = matcher.ratio();
+    //auto match_list = matcher.get_matching_blocks();
+    //nb_match = matcher.get_matching_blocks().size();
   }
+  //
+  //for(auto const& triple : match_list) {
+    //std::cout 
+      //<< "a=" << std::get<0>(triple) 
+      //<< ", b=" << std::get<1>(triple)
+      //<< ", s=" << std::get<2>(triple)
+      //<< "\n";
+  //}
 
   std::cout<< ratio <<std::endl;
+  //std::cout<< nb_match <<std::endl;
 
   return 0;
 }
