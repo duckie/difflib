@@ -85,7 +85,6 @@ template <class T = std::string> class SequenceMatcher {
 
   SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk) {
     j2len_.resize(b.size()+1);
-    new_j2len_.resize(b.size()+1);
     chain_b();
   }
 
@@ -110,7 +109,6 @@ template <class T = std::string> class SequenceMatcher {
   void set_seq2(T const& b) {
     b_ = b;
     j2len_.resize(b.size()+1);
-    new_j2len_.resize(b.size()+1);
     chain_b();
     matching_blocks_ = nullptr;
   }
@@ -135,35 +133,32 @@ template <class T = std::string> class SequenceMatcher {
     
     // Find longest junk free match
     {
-      size_t range_erase_s = 0;
-      size_t range_erase_e = 0;
-
-      std::fill(std::begin(j2len_)+b_low, std::begin(j2len_)+b_high, 0);
+      j2_values_to_erase_.clear();
       for(size_t i = a_low; i < a_high; ++i) {
-        size_t range_copy_s = 0;
-        size_t range_copy_e = 0;
+        j2_values_to_affect_.clear();
+
         for(size_t j : b2j_[a_[i]]) {
           if (j < b_low) continue;
           if (j >= b_high) break;
-          size_t k = new_j2len_[j+1] = j2len_[j] + 1;
+          size_t k = j2len_[j] + 1;
+          j2_values_to_affect_.emplace_back(j+1,k);
           if (k > best_size) {
             best_i = i-k+1;
             best_j = j-k+1;
             best_size = k;
           }
-          if (j < range_copy_s) range_copy_s = j;
-          if (range_copy_e <= j) range_copy_e = j+1;
-
         }
-
-        std::swap(j2len_, new_j2len_);
-        std::fill(
-            begin(new_j2len_)+range_erase_s
-            , begin(new_j2len_)+range_erase_e
-            , 0);
-
-        range_erase_s = range_copy_s;
-        range_erase_e = range_copy_e+1;
+        
+        for(auto const& elem : j2_values_to_erase_) {
+          j2len_[elem.first] = 0;
+        }
+        for(auto const& elem : j2_values_to_affect_) {
+          j2len_[elem.first] = elem.second;
+        }
+        std::swap(j2_values_to_erase_, j2_values_to_affect_);
+      }
+      for(auto const& elem : j2_values_to_erase_) {
+        j2len_[elem.first] = 0;
       }
     }
    
@@ -179,7 +174,9 @@ template <class T = std::string> class SequenceMatcher {
       }
     };
 
-    auto high_bound_expand = [best_i, best_j, a_high, b_high, &best_size, this] (bool isjunk) {
+    // References on best_i best_k are needed here even if modified inside the code
+    // because modified betweent the calls
+    auto high_bound_expand = [&best_i, &best_j, a_high, b_high, &best_size, this] (bool isjunk) {
       while (
         (best_i+best_size) < a_high  
         && (best_j+best_size) < b_high 
@@ -300,7 +297,8 @@ template <class T = std::string> class SequenceMatcher {
 
   // Cache to avoid reallocations
   std::vector<size_t> j2len_;
-  std::vector<size_t> new_j2len_;
+  std::vector<std::pair<size_t, size_t>> j2_values_to_affect_;
+  std::vector<std::pair<size_t, size_t>> j2_values_to_erase_;
 
   junk_set_t junk_set_;
   junk_set_t popular_set_;
