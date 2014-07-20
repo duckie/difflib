@@ -253,8 +253,8 @@ template <class T = std::string> class SequenceMatcher {
   }
 
  private:
-  using b2j_t = std::map<hashable_type, std::list<size_t>>;
-  using junk_set_t = std::set<hashable_type>;
+  using b2j_t = std::unordered_map<hashable_type, std::vector<size_t>>;
+  using junk_set_t = std::unordered_set<hashable_type>;
 
   void chain_b() {
     size_t index=0;

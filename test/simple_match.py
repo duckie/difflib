@@ -10,11 +10,12 @@ a = file_a.read()
 file_b = open(sys.argv[2],"r")
 b = file_b.read()
 
-r = 0.
-nb_match = 0
-for i in range(0,1000):
-  s = difflib.SequenceMatcher(None, a, b)
-  r = s.ratio()
+s = difflib.SequenceMatcher(None, a, b)
+r = s.ratio()
+blocks = s.get_matching_blocks()
+
+for elem in blocks:
+  print(elem)
 
 print(r) 
 #print(nb_match)

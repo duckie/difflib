@@ -39,6 +39,7 @@ file(GLOB SRCS_FILES *.cc)
 ### Exe ###
 add_executable(${PROJECT_NAME}-test ${SRCS_FILES}) 
 add_executable(perf01-test perf_01.cpp) 
+add_executable(simplematch-test simple_match.cpp) 
 
 ### Linking ###
 target_link_libraries(${PROJECT_NAME}-test ${LIBRARIES})
