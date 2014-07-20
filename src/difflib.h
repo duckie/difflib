@@ -70,9 +70,6 @@ template <class T> class has_bracket_operator {
   static bool const value = (sizeof(matcher<T>(nullptr)) == sizeof(has_op));
 };
 
-// "H" for hashable
-template <class H> bool NoJunk(H const&)  { return false; }
-
 template <class T = std::string> class SequenceMatcher {
   static_assert(is_standard_iterable<T>::value, "The matched objects must be iterable.");
   static_assert(is_hashable_sequence<T>::value, "The matched sequences must be of hashable elements.");
@@ -83,7 +80,7 @@ template <class T = std::string> class SequenceMatcher {
   using hashable_type = typename T::value_type;
   using junk_function_type = std::function<bool(hashable_type const&)>;
 
-  SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk) {
+  SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = nullptr, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk) {
     j2len_.resize(b.size()+1);
     chain_b();
   }
@@ -137,7 +134,7 @@ template <class T = std::string> class SequenceMatcher {
       for(size_t i = a_low; i < a_high; ++i) {
         j2_values_to_affect_.clear();
 
-        for(size_t j : b2j_[a_[i]]) {
+        for(size_t j : get(b2j_,a_[i])) {
           if (j < b_low) continue;
           if (j >= b_high) break;
           size_t k = j2len_[j] + 1;
@@ -168,7 +165,7 @@ template <class T = std::string> class SequenceMatcher {
         best_i > a_low  
         && best_j > b_low 
         && this->a_[best_i-1] == this->b_[best_j-1] 
-        && isjunk == b2j_.count(b_[best_j-1])
+        && isjunk == has(b2j_,b_[best_j-1])
       ) {
         --best_i; --best_j; ++best_size;
       }
@@ -181,7 +178,7 @@ template <class T = std::string> class SequenceMatcher {
         (best_i+best_size) < a_high  
         && (best_j+best_size) < b_high 
         && this->a_[best_i+best_size] == this->b_[best_j+best_size]
-        && isjunk == b2j_.count(b_[best_j + best_size])
+        && isjunk == has(b2j_,b_[best_j + best_size])
       ) {
         ++best_size;
       }
@@ -250,47 +247,96 @@ template <class T = std::string> class SequenceMatcher {
   }
 
  private:
-  using b2j_t = std::unordered_map<hashable_type, std::vector<size_t>>;
+  static constexpr bool char_optim = std::is_same<char, hashable_type>::value;
+  using b2j_nooptim_t = std::unordered_map<hashable_type, std::vector<size_t>>;
+  using b2j_optim_t = std::array<std::vector<size_t>, std::numeric_limits<unsigned char>::max()>;
+  using b2j_t = typename std::conditional<char_optim , b2j_optim_t, b2j_nooptim_t>::type;
   using junk_set_t = std::unordered_set<hashable_type>;
 
   void chain_b() {
     size_t index=0;
    
     // Counting occurences
-    b2j_.clear();
-    for(hashable_type const& elem : b_) b2j_[elem].push_back(index++);
+    clear(b2j_);
+    for(hashable_type const& elem : b_) get(b2j_, elem).push_back(index++);
         
     // Purge junk elements
     junk_set_.clear();
-    for(auto it = b2j_.begin(); it != b2j_.end();) {
-      if(is_junk_(it->first)) {
-        junk_set_.insert(it->first);
-        it = b2j_.erase(it);
-      }
-      else {
-        ++it;
-      }
+    if (is_junk_) {
+      purge_junk(b2j_);
     }
     
     // Purge popular elements that are not junk
     popular_set_.clear();
     if (auto_junk_ && auto_junk_minsize_ <= b_.size()) {
-      size_t ntest = b_.size()/100 + 1;
-      for(auto it = b2j_.begin(); it != b2j_.end();) {
-        if (ntest < it->second.size()) {
-          popular_set_.insert(it->first);
-          it = b2j_.erase(it);
-        }
-        else {
-          ++it;
-        }
+      clean_popular(b2j_);
+    }
+  }
+
+  // Specialized functions for char optimized version
+  inline void clear(b2j_optim_t& b2j) { 
+    for(auto & elem : b2j) elem.clear();
+  }
+  inline bool has(b2j_optim_t& b2j, hashable_type const& key) const { return 0 < b2j[static_cast<std::size_t>(key)].size(); }
+  inline std::vector<size_t>& get(b2j_optim_t& b2j, hashable_type const& key) { return b2j[static_cast<std::size_t>(key)]; }
+
+  inline void purge_junk(b2j_optim_t& b2j) {
+    std::size_t index = 0;
+    for(auto& elem : b2j) {
+      if(elem.size() && is_junk_(static_cast<char>(index))) {
+        elem.clear();
+        junk_set_.insert(index);
+      }
+      ++index;
+    }
+  }
+
+  inline void clean_popular(b2j_optim_t& b2j) {
+    size_t ntest = b_.size()/100 + 1;
+    std::size_t index = 0;
+    for(auto& elem : b2j) {
+      if (ntest < elem.size()) {
+        elem.clear();
+        popular_set_.insert(index);
+      }
+      ++index;
+    }
+  }
+
+  // Specialized functions for no char optimized version
+  inline void clear(b2j_nooptim_t& b2j) { b2j.clear(); }
+  inline bool has(b2j_nooptim_t& b2j, hashable_type const& key) const { return b2j.count(key); }
+  inline std::vector<size_t>& get(b2j_nooptim_t& b2j, hashable_type const& key) { return b2j[key]; }
+
+  inline void purge_junk(b2j_nooptim_t& b2j) {
+    for(auto it = b2j.begin(); it != b2j.end();) {
+      if(is_junk_(it->first)) {
+        junk_set_.insert(it->first);
+        it = b2j.erase(it);
+      }
+      else {
+        ++it;
       }
     }
   }
 
+  inline void clean_popular(b2j_nooptim_t& b2j) {
+    size_t ntest = b_.size()/100 + 1;
+    for(auto it = b2j.begin(); it != b2j.end();) {
+      if (ntest < it->second.size()) {
+        popular_set_.insert(it->first);
+        it = b2j.erase(it);
+      }
+      else {
+        ++it;
+      }
+    }
+  }
+
+
   T a_;
   T b_;
-  junk_function_type is_junk_ = NoJunk<hashable_type>;
+  junk_function_type is_junk_ = nullptr;
   bool auto_junk_ = true;
   std::size_t auto_junk_minsize_ = 200u;
   b2j_t b2j_;
@@ -308,7 +354,7 @@ template <class T = std::string> class SequenceMatcher {
 template <class T> auto MakeSequenceMatcher(
   T const& a
   , T const& b
-  , typename SequenceMatcher<T>::junk_function_type is_junk = NoJunk<typename SequenceMatcher<T>::hashable_type>
+  , typename SequenceMatcher<T>::junk_function_type is_junk = nullptr
   , bool auto_junk = true 
 )
 -> SequenceMatcher<T> 
