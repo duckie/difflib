@@ -155,17 +155,11 @@ template <class T = std::string> class SequenceMatcher {
           if (range_copy_e <= j) range_copy_e = j+1;
 
         }
+
+        std::swap(j2len_, new_j2len_);
         std::fill(
-            begin(j2len_)+range_erase_s
-            , begin(j2len_)+range_erase_e+1
-            , 0);
-        std::copy(
-            begin(new_j2len_)+range_copy_s
-            , begin(new_j2len_)+range_copy_e+1
-            , begin(j2len_)+range_copy_s);
-        std::fill(
-            begin(new_j2len_)+range_copy_s
-            , begin(new_j2len_)+range_copy_e+1
+            begin(new_j2len_)+range_erase_s
+            , begin(new_j2len_)+range_erase_e
             , 0);
 
         range_erase_s = range_copy_s;
