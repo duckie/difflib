@@ -23,6 +23,7 @@ int main(int argc, char * argv[]) {
   for (int i = 0; i < 1000; ++i) 
   {
     auto matcher= difflib::MakeSequenceMatcher<>(a,b);
+    //auto matcher= difflib::MakeSequenceMatcher<>(a,b, difflib::NoJunk<char>, true);
     ratio = matcher.ratio();
     //auto match_list = matcher.get_matching_blocks();
     //nb_match = matcher.get_matching_blocks().size();

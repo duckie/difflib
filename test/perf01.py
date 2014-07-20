@@ -15,10 +15,10 @@ nb_match = 0
 for i in range(0,1000):
   s = difflib.SequenceMatcher(None, a, b)
   r = s.ratio()
-  #b = s.get_matching_blocks()
+  #blocks = s.get_matching_blocks()
   #nb_match = len(s.get_matching_blocks())
 
-#for elem in b:
+#for elem in blocks:
 #  print(elem)
 
 print(r) 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-size=30
+size=1000
 command="cat /dev/urandom | base64 | tr -dc \"[:alnum:]\" | head -c${size} | tr -s \"\n\" \" \"|tr -d \" \""
 
 eval ${command} > /tmp/common

@@ -30,8 +30,6 @@ using std::tie;
 using match_t = tuple<size_t, size_t, size_t>;
 using match_list_t = std::vector<match_t>;  // A vector to speed up copying
 
-size_t const AUTOJUNK_MIN_SIZE = 200; 
-
 // This trait checks if a given type is a standard collection of hashable types
 // SFINAE ftw
 template <class T> class is_hashable_sequence {
@@ -96,6 +94,9 @@ template <class T = std::string> class SequenceMatcher {
   SequenceMatcher(SequenceMatcher<T>&&) = default;
   SequenceMatcher& operator= (SequenceMatcher<T>&&) = default;
 
+  std::size_t auto_junk_minsize() const { return auto_junk_minsize_; }
+  void set_auto_junk_minsize(std::size_t value) { auto_junk_minsize_ = value; }
+
   void set_seq(T const& a, T const& b) {
     set_seq1(a);
     set_seq2(b);
@@ -124,16 +125,23 @@ template <class T = std::string> class SequenceMatcher {
   } 
   
   match_t find_longest_match(size_t a_low, size_t a_high, size_t b_low, size_t b_high) {
+    using std::begin;
+    using std::end;
+
+
     size_t best_i = a_low;
     size_t best_j = b_low;
     size_t best_size = 0;
     
     // Find longest junk free match
     {
-      std::fill(std::begin(j2len_)+b_low, std::begin(j2len_)+b_high-1, 0);
+      size_t range_erase_s = 0;
+      size_t range_erase_e = 0;
+
+      std::fill(std::begin(j2len_)+b_low, std::begin(j2len_)+b_high, 0);
       for(size_t i = a_low; i < a_high; ++i) {
-        std::fill(std::begin(new_j2len_)+b_low, std::begin(new_j2len_)+b_high, 0);
-        
+        size_t range_copy_s = 0;
+        size_t range_copy_e = 0;
         for(size_t j : b2j_[a_[i]]) {
           if (j < b_low) continue;
           if (j >= b_high) break;
@@ -143,8 +151,25 @@ template <class T = std::string> class SequenceMatcher {
             best_j = j-k+1;
             best_size = k;
           }
+          if (j < range_copy_s) range_copy_s = j;
+          if (range_copy_e <= j) range_copy_e = j+1;
+
         }
-        j2len_ = new_j2len_;
+        std::fill(
+            begin(j2len_)+range_erase_s
+            , begin(j2len_)+range_erase_e+1
+            , 0);
+        std::copy(
+            begin(new_j2len_)+range_copy_s
+            , begin(new_j2len_)+range_copy_e+1
+            , begin(j2len_)+range_copy_s);
+        std::fill(
+            begin(new_j2len_)+range_copy_s
+            , begin(new_j2len_)+range_copy_e+1
+            , 0);
+
+        range_erase_s = range_copy_s;
+        range_erase_e = range_copy_e+1;
       }
     }
    
@@ -258,7 +283,7 @@ template <class T = std::string> class SequenceMatcher {
     
     // Purge popular elements that are not junk
     popular_set_.clear();
-    if (auto_junk_ && AUTOJUNK_MIN_SIZE < b_.size()) {
+    if (auto_junk_ && auto_junk_minsize_ <= b_.size()) {
       size_t ntest = b_.size()/100 + 1;
       for(auto it = b2j_.begin(); it != b2j_.end();) {
         if (ntest < it->second.size()) {
@@ -274,11 +299,15 @@ template <class T = std::string> class SequenceMatcher {
 
   T a_;
   T b_;
-  junk_function_type is_junk_;
-  bool auto_junk_;
+  junk_function_type is_junk_ = NoJunk<hashable_type>;
+  bool auto_junk_ = true;
+  std::size_t auto_junk_minsize_ = 200u;
   b2j_t b2j_;
+
+  // Cache to avoid reallocations
   std::vector<size_t> j2len_;
   std::vector<size_t> new_j2len_;
+
   junk_set_t junk_set_;
   junk_set_t popular_set_;
   std::unique_ptr<match_list_t> matching_blocks_;
@@ -288,7 +317,7 @@ template <class T> auto MakeSequenceMatcher(
   T const& a
   , T const& b
   , typename SequenceMatcher<T>::junk_function_type is_junk = NoJunk<typename SequenceMatcher<T>::hashable_type>
-  , bool auto_junk = false
+  , bool auto_junk = true 
 )
 -> SequenceMatcher<T> 
 { 
