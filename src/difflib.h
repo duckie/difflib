@@ -288,9 +288,11 @@ template <class T = std::string> class SequenceMatcher {
     }
   }
 
+protected:
   T a_;
   T b_;
   junk_function_type is_junk_ = NoJunk<hashable_type>;
+private:
   bool auto_junk_ = true;
   std::size_t auto_junk_minsize_ = 200u;
   b2j_t b2j_;
@@ -302,6 +304,7 @@ template <class T = std::string> class SequenceMatcher {
 
   junk_set_t junk_set_;
   junk_set_t popular_set_;
+protected:
   std::unique_ptr<match_list_t> matching_blocks_;
 };
 
