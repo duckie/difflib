@@ -70,9 +70,6 @@ template <class T> class has_bracket_operator {
   static bool const value = (sizeof(matcher<T>(nullptr)) == sizeof(has_op));
 };
 
-// "H" for hashable
-template <class H> bool NoJunk(H const&)  { return false; }
-
 template <class T = std::string> class SequenceMatcher {
   static_assert(is_standard_iterable<T>::value, "The matched objects must be iterable.");
   static_assert(is_hashable_sequence<T>::value, "The matched sequences must be of hashable elements.");
@@ -83,7 +80,7 @@ template <class T = std::string> class SequenceMatcher {
   using hashable_type = typename T::value_type;
   using junk_function_type = std::function<bool(hashable_type const&)>;
 
-  SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = NoJunk<hashable_type>, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk) {
+  SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = nullptr, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk) {
     j2len_.resize(b.size()+1);
     chain_b();
   }
@@ -262,13 +259,15 @@ template <class T = std::string> class SequenceMatcher {
         
     // Purge junk elements
     junk_set_.clear();
-    for(auto it = b2j_.begin(); it != b2j_.end();) {
-      if(is_junk_(it->first)) {
-        junk_set_.insert(it->first);
-        it = b2j_.erase(it);
-      }
-      else {
-        ++it;
+    if (is_junk_) {
+      for(auto it = b2j_.begin(); it != b2j_.end();) {
+        if(is_junk_(it->first)) {
+          junk_set_.insert(it->first);
+          it = b2j_.erase(it);
+        }
+        else {
+          ++it;
+        }
       }
     }
     
@@ -290,7 +289,7 @@ template <class T = std::string> class SequenceMatcher {
 
   T a_;
   T b_;
-  junk_function_type is_junk_ = NoJunk<hashable_type>;
+  junk_function_type is_junk_ = nullptr;
   bool auto_junk_ = true;
   std::size_t auto_junk_minsize_ = 200u;
   b2j_t b2j_;
@@ -308,7 +307,7 @@ template <class T = std::string> class SequenceMatcher {
 template <class T> auto MakeSequenceMatcher(
   T const& a
   , T const& b
-  , typename SequenceMatcher<T>::junk_function_type is_junk = NoJunk<typename SequenceMatcher<T>::hashable_type>
+  , typename SequenceMatcher<T>::junk_function_type is_junk = nullptr
   , bool auto_junk = true 
 )
 -> SequenceMatcher<T> 
