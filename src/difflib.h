@@ -29,6 +29,8 @@ using std::tie;
 // Exposed types
 using match_t = tuple<size_t, size_t, size_t>;
 using match_list_t = std::vector<match_t>;  // A vector to speed up copying
+using chunk_t = tuple<std::string, size_t, size_t, size_t, size_t>;
+using chunk_list_t = std::vector<chunk_t>;
 
 // This trait checks if a given type is a standard collection of hashable types
 // SFINAE ftw
@@ -101,6 +103,7 @@ template <class T = std::string> class SequenceMatcher {
   void set_seq1(T const& a) { 
     a_ = a;
     matching_blocks_ = nullptr;
+    opcodes_ = nullptr;
   }
 
   void set_seq2(T const& b) {
@@ -108,6 +111,7 @@ template <class T = std::string> class SequenceMatcher {
     j2len_.resize(b.size()+1);
     chain_b();
     matching_blocks_ = nullptr;
+    opcodes_ = nullptr;
   }
   
   double ratio() {
@@ -246,6 +250,93 @@ template <class T = std::string> class SequenceMatcher {
     return *matching_blocks_;
   }
 
+  /*!
+   * \brief Return list of 5-tuples describing how to turn a into b.
+   *
+   * Each tuple is of the form (tag, i1, i2, j1, j2).  The first tuple
+   * has i1 == j1 == 0, and remaining tuples have i1 == the i2 from the
+   * tuple preceding it, and likewise for j1 == the previous j2.
+   *
+   * The tags are strings, with these meanings:
+   *
+   * 'replace':  a[i1:i2] should be replaced by b[j1:j2]
+   * 'delete':   a[i1:i2] should be deleted.
+   *             Note that j1==j2 in this case.
+   * 'insert':   b[j1:j2] should be inserted at a[i1:i1].
+   *             Note that i1==i2 in this case.
+   * 'equal':    a[i1:i2] == b[j1:j2]
+   *
+   * std::string a = "qabxcd";
+   * std::string b = "abycdf";
+   * auto s = MakeSequenceMatcher(None, a, b)
+   * for (auto const& opcode : s.get_opcodes()) {
+   *  std::string tag;
+   *  std::size_t i1,i2,j1,j2;
+   *  std::tie(tag, i1, i2, j1, j2) = opcode;
+   *  std::cout
+   *    << std::setw(7) << tag
+   *    << " a[" << i1 << ":" << i2 << " (" << a.substr(i1, i2-i1) << ")"
+   *    << " b[" << j1 << ":" << j2 << " (" << b.substr(j1, j2-j1) << ")"
+   *    << "\n";
+   * }
+   *  
+   *  delete a[0:1] (q) b[0:0] ()
+   *   equal a[1:3] (ab) b[0:2] (ab)
+   * replace a[3:4] (x) b[2:3] (y)
+   *   equal a[4:6] (cd) b[3:5] (cd)
+   *  insert a[6:6] () b[5:6] (f)
+   */
+  chunk_list_t get_opcodes() {
+    using std::get;
+
+    if (opcodes_)
+      return *opcodes_;
+
+    size_t i = 0;
+    size_t j = 0;
+    opcodes_.reset(new chunk_list_t);
+    for (match_t const& m : get_matching_blocks()) {
+      size_t ai, bj, size;
+      std::tie(ai, bj, size) = m;
+
+      // invariant:  we've pumped out correct diffs to change
+      // a[:i] into b[:j], and the next matching block is
+      // a[ai:ai+size] == b[bj:bj+size].  So we need to pump
+      // out a diff to change a[i:ai] into b[j:bj], pump out
+      // the matching block, and move (i,j) beyond the match
+      std::string tag;
+      if (i < ai and j < bj) {
+        tag = "replace";
+      } else if (i < ai) {
+        tag = "delete";
+      } else if (j < bj) {
+        tag = "insert";
+      }
+
+      if (!tag.empty()) {
+        opcodes_->emplace_back(tag, i, ai, j, bj);
+      }
+
+      i = ai+size;
+      j = bj+size;
+
+      // the list of matching blocks is terminated by a
+      // sentinel with size 0
+      if (size) {
+        opcodes_->emplace_back("equal", ai, i, bj, j);
+      }
+    }
+
+    return *opcodes_;
+  }
+
+ protected:
+  T a_;
+  T b_;
+  junk_function_type is_junk_ = nullptr;
+  std::unique_ptr<match_list_t> matching_blocks_;
+  std::unique_ptr<chunk_list_t> opcodes_;
+
  private:
   using b2j_t = std::unordered_map<hashable_type, std::vector<size_t>>;
   using junk_set_t = std::unordered_set<hashable_type>;
@@ -287,21 +378,16 @@ template <class T = std::string> class SequenceMatcher {
     }
   }
 
-  T a_;
-  T b_;
-  junk_function_type is_junk_ = nullptr;
   bool auto_junk_ = true;
   std::size_t auto_junk_minsize_ = 200u;
   b2j_t b2j_;
+  junk_set_t junk_set_;
+  junk_set_t popular_set_;
 
   // Cache to avoid reallocations
   std::vector<size_t> j2len_;
   std::vector<std::pair<size_t, size_t>> j2_values_to_affect_;
   std::vector<std::pair<size_t, size_t>> j2_values_to_erase_;
-
-  junk_set_t junk_set_;
-  junk_set_t popular_set_;
-  std::unique_ptr<match_list_t> matching_blocks_;
 };
 
 template <class T> auto MakeSequenceMatcher(
