@@ -17,7 +17,6 @@ int main(int argc, char * argv[]) {
   std::string b((std::istreambuf_iterator<char>(file_b)), std::istreambuf_iterator<char>());
 
   double ratio = 0;
-  std::size_t nb_match = 0;
   
 
   for (int i = 0; i < 1000; ++i) 

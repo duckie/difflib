@@ -29,6 +29,8 @@ using std::tie;
 // Exposed types
 using match_t = tuple<size_t, size_t, size_t>;
 using match_list_t = std::vector<match_t>;  // A vector to speed up copying
+using chunk_t = tuple<std::string, size_t, size_t, size_t, size_t>;
+using chunk_list_t = std::vector<chunk_t>;
 
 // This trait checks if a given type is a standard collection of hashable types
 // SFINAE ftw
@@ -249,6 +251,75 @@ template <class T = std::string> class SequenceMatcher {
     return *matching_blocks_;
   }
 
+  /*!
+   * \brief Return list of 5-tuples describing how to turn a into b.
+   *
+   * Each tuple is of the form (tag, i1, i2, j1, j2).  The first tuple
+   * has i1 == j1 == 0, and remaining tuples have i1 == the i2 from the
+   * tuple preceding it, and likewise for j1 == the previous j2.
+   *
+   * The tags are strings, with these meanings:
+   *
+   * 'replace':  a[i1:i2] should be replaced by b[j1:j2]
+   * 'delete':   a[i1:i2] should be deleted.
+   *             Note that j1==j2 in this case.
+   * 'insert':   b[j1:j2] should be inserted at a[i1:i1].
+   *             Note that i1==i2 in this case.
+   * 'equal':    a[i1:i2] == b[j1:j2]
+   *
+   * >>> a = "qabxcd"
+   * >>> b = "abycdf"
+   * >>> s = SequenceMatcher(None, a, b)
+   * >>> for tag, i1, i2, j1, j2 in s.get_opcodes():
+   * ...    print(("%7s a[%d:%d] (%s) b[%d:%d] (%s)" %
+   * ...           (tag, i1, i2, a[i1:i2], j1, j2, b[j1:j2])))
+   *  delete a[0:1] (q) b[0:0] ()
+   *   equal a[1:3] (ab) b[0:2] (ab)
+   * replace a[3:4] (x) b[2:3] (y)
+   *   equal a[4:6] (cd) b[3:5] (cd)
+   *  insert a[6:6] () b[5:6] (f)
+   */
+  chunk_list_t get_opcodes() {
+    using std::get;
+
+    if (opcodes_)
+      return *opcodes_;
+
+    size_t i = 0;
+    size_t j = 0;
+    opcodes_.reset(new chunk_list_t);
+    for (difflib::match_t _m : this->get_matching_blocks()) {
+      size_t ai = get<0>(_m);
+      size_t bj = get<1>(_m);
+      size_t size = std::get<2>(_m);
+      // invariant:  we've pumped out correct diffs to change
+      // a[:i] into b[:j], and the next matching block is
+      // a[ai:ai+size] == b[bj:bj+size].  So we need to pump
+      // out a diff to change a[i:ai] into b[j:bj], pump out
+      // the matching block, and move (i,j) beyond the match
+      std::string tag = "";
+      if (i < ai and j < bj) {
+        tag = "replace";
+      } else if (i < ai) {
+        tag = "delete";
+      } else if (j < bj) {
+        tag = "insert";
+      }
+      if (!tag.empty()) {
+        opcodes_->push_back(chunk_t(tag, i, ai, j, bj));
+      }
+      i = ai+size;
+      j = bj+size;
+      // the list of matching blocks is terminated by a
+      // sentinel with size 0
+      if (size) {
+        opcodes_->push_back(chunk_t("equal", ai, i, bj, j));
+      }
+    }
+
+    return *opcodes_;
+  }
+
  private:
   using b2j_t = std::unordered_map<hashable_type, std::vector<size_t>>;
   using junk_set_t = std::unordered_set<hashable_type>;
@@ -288,9 +359,11 @@ template <class T = std::string> class SequenceMatcher {
     }
   }
 
+protected:
   T a_;
   T b_;
   junk_function_type is_junk_ = NoJunk<hashable_type>;
+private:
   bool auto_junk_ = true;
   std::size_t auto_junk_minsize_ = 200u;
   b2j_t b2j_;
@@ -302,7 +375,9 @@ template <class T = std::string> class SequenceMatcher {
 
   junk_set_t junk_set_;
   junk_set_t popular_set_;
+protected:
   std::unique_ptr<match_list_t> matching_blocks_;
+  std::unique_ptr<chunk_list_t> opcodes_;
 };
 
 template <class T> auto MakeSequenceMatcher(
