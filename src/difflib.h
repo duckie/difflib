@@ -29,6 +29,8 @@ using std::tie;
 // Exposed types
 using match_t = tuple<size_t, size_t, size_t>;
 using match_list_t = std::vector<match_t>;  // A vector to speed up copying
+using chunk_t = tuple<std::string, size_t, size_t, size_t, size_t>;
+using chunk_list_t = std::vector<chunk_t>;
 
 // This trait checks if a given type is a standard collection of hashable types
 // SFINAE ftw
@@ -249,6 +251,47 @@ template <class T = std::string> class SequenceMatcher {
     return *matching_blocks_;
   }
 
+  chunk_list_t get_opcodes() {
+    using std::get;
+
+    if (opcodes_)
+      return *opcodes_;
+
+    size_t i = 0;
+    size_t j = 0;
+    opcodes_.reset(new chunk_list_t);
+    for (difflib::match_t _m : this->get_matching_blocks()) {
+      size_t ai = get<0>(_m);
+      size_t bj = get<1>(_m);
+      size_t size = std::get<2>(_m);
+      // invariant:  we've pumped out correct diffs to change
+      // a[:i] into b[:j], and the next matching block is
+      // a[ai:ai+size] == b[bj:bj+size].  So we need to pump
+      // out a diff to change a[i:ai] into b[j:bj], pump out
+      // the matching block, and move (i,j) beyond the match
+      std::string tag = "";
+      if (i < ai and j < bj) {
+        tag = "replace";
+      } else if (i < ai) {
+        tag = "delete";
+      } else if (j < bj) {
+        tag = "insert";
+      }
+      if (!tag.empty()) {
+        opcodes_->push_back(chunk_t(tag, i, ai, j, bj));
+      }
+      i = ai+size;
+      j = bj+size;
+      // the list of matching blocks is terminated by a
+      // sentinel with size 0
+      if (size) {
+        opcodes_->push_back(chunk_t("equal", ai, i, bj, j));
+      }
+    }
+
+    return *opcodes_;
+  }
+
  private:
   using b2j_t = std::unordered_map<hashable_type, std::vector<size_t>>;
   using junk_set_t = std::unordered_set<hashable_type>;
@@ -306,6 +349,7 @@ private:
   junk_set_t popular_set_;
 protected:
   std::unique_ptr<match_list_t> matching_blocks_;
+  std::unique_ptr<chunk_list_t> opcodes_;
 };
 
 template <class T> auto MakeSequenceMatcher(
