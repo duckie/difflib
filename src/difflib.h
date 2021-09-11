@@ -34,8 +34,6 @@
 #include <map>
 #include <list>
 #include <algorithm>
-#include <unordered_set>
-#include <set>
 #include <tuple>
 #include <algorithm>
 #include <memory>
@@ -370,7 +368,6 @@ template <class T = std::string> class SequenceMatcher {
 
  private:
   using b2j_t = std::unordered_map<hashable_type, std::vector<size_t>>;
-  using junk_set_t = std::unordered_set<hashable_type>;
 
   void chain_b() {
     size_t index=0;
@@ -380,11 +377,9 @@ template <class T = std::string> class SequenceMatcher {
     for(hashable_type const& elem : b_) b2j_[elem].push_back(index++);
 
     // Purge junk elements
-    junk_set_.clear();
     if (is_junk_) {
       for(auto it = b2j_.begin(); it != b2j_.end();) {
         if(is_junk_(it->first)) {
-          junk_set_.insert(it->first);
           it = b2j_.erase(it);
         }
         else {
@@ -394,12 +389,10 @@ template <class T = std::string> class SequenceMatcher {
     }
 
     // Purge popular elements that are not junk
-    popular_set_.clear();
     if (auto_junk_ && auto_junk_minsize_ <= b_.size()) {
       size_t ntest = b_.size()/100 + 1;
       for(auto it = b2j_.begin(); it != b2j_.end();) {
         if (ntest < it->second.size()) {
-          popular_set_.insert(it->first);
           it = b2j_.erase(it);
         }
         else {
@@ -412,8 +405,6 @@ template <class T = std::string> class SequenceMatcher {
   bool auto_junk_ = true;
   std::size_t auto_junk_minsize_ = 200u;
   b2j_t b2j_;
-  junk_set_t junk_set_;
-  junk_set_t popular_set_;
 
   // Cache to avoid reallocations
   std::vector<size_t> j2len_;
