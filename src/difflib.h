@@ -32,7 +32,6 @@
 #include <iostream>
 #include <unordered_map>
 #include <map>
-#include <list>
 #include <algorithm>
 #include <tuple>
 #include <algorithm>
@@ -42,7 +41,6 @@
 namespace difflib {
 
 using std::vector;
-using std::list;
 using std::tuple;
 using std::make_tuple;
 using std::tie;
@@ -156,7 +154,12 @@ template <class T = std::string> class SequenceMatcher {
     // Find longest junk free match
     {
       for(size_t i = a_low; i < a_high; ++i) {
-        const auto& indexes = b2j_[a_[i]];
+        auto search = b2j_.find(a_[i]);
+        if (search == b2j_.end())
+        {
+          continue;
+        }
+        const auto& indexes = search->second;
         size_t pos = 0;
         std::size_t next_val = 0;
         for (; pos < indexes.size(); pos++) {
