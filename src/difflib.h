@@ -29,7 +29,6 @@
 #include <utility>
 #include <iterator>
 #include <type_traits>
-#include <iostream>
 #include <unordered_map>
 #include <map>
 #include <algorithm>
@@ -37,18 +36,14 @@
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include <limits>
 
 namespace difflib {
 
-using std::vector;
-using std::tuple;
-using std::make_tuple;
-using std::tie;
-
 // Exposed types
-using match_t = tuple<size_t, size_t, size_t>;
+using match_t = std::tuple<size_t, size_t, size_t>;
 using match_list_t = std::vector<match_t>;  // A vector to speed up copying
-using chunk_t = tuple<std::string, size_t, size_t, size_t, size_t>;
+using chunk_t = std::tuple<std::string, size_t, size_t, size_t, size_t>;
 using chunk_list_t = std::vector<chunk_t>;
 
 // This trait checks if a given type is a standard collection of hashable types
@@ -91,30 +86,48 @@ template <class T> class has_bracket_operator {
   static bool const value = (sizeof(matcher<T>(nullptr)) == sizeof(has_op));
 };
 
-template <class T = std::string> class SequenceMatcher {
+/*
+ * taken from https://stackoverflow.com/a/17251989/11335032
+ */
+template <typename T, typename U> bool CanTypeFitValue(const U value)
+{
+    const intmax_t botT = intmax_t(std::numeric_limits<T>::min());
+    const intmax_t botU = intmax_t(std::numeric_limits<U>::min());
+    const uintmax_t topT = uintmax_t(std::numeric_limits<T>::max());
+    const uintmax_t topU = uintmax_t(std::numeric_limits<U>::max());
+    return !((botT > botU && value < static_cast<U>(botT)) ||
+             (topT < topU && value > static_cast<U>(topT)));
+}
+
+template <class T = std::string, class U = T> class SequenceMatcher {
   static_assert(is_standard_iterable<T>::value, "The matched objects must be iterable.");
   static_assert(is_hashable_sequence<T>::value, "The matched sequences must be of hashable elements.");
   static_assert(has_bracket_operator<T>::value, "The matched sequences must implement operator[].");
+  static_assert(is_standard_iterable<U>::value, "The matched objects must be iterable.");
+  static_assert(is_hashable_sequence<U>::value, "The matched sequences must be of hashable elements.");
+  static_assert(has_bracket_operator<U>::value, "The matched sequences must implement operator[].");
 
  public:
-  using value_type = T;
-  using hashable_type = typename T::value_type;
+  //using value_type = T;
+  using hashable_type = typename U::value_type;
   using junk_function_type = std::function<bool(hashable_type const&)>;
 
-  SequenceMatcher(T const& a, T const& b, junk_function_type is_junk = nullptr, bool auto_junk = true): a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk) {
+  SequenceMatcher(T const& a, U const& b, junk_function_type is_junk = nullptr, bool auto_junk = true)
+    : a_(a), b_(b), is_junk_(is_junk), auto_junk_(auto_junk)
+  {
     j2len_.resize(b.size()+1);
     chain_b();
   }
 
-  SequenceMatcher(SequenceMatcher<T> const&) = delete;
-  SequenceMatcher& operator= (SequenceMatcher<T> const&) = delete;
-  SequenceMatcher(SequenceMatcher<T>&&) = default;
-  SequenceMatcher& operator= (SequenceMatcher<T>&&) = default;
+  SequenceMatcher(SequenceMatcher<T, U> const&) = delete;
+  SequenceMatcher& operator= (SequenceMatcher<T, U> const&) = delete;
+  SequenceMatcher(SequenceMatcher<T, U>&&) = default;
+  SequenceMatcher& operator= (SequenceMatcher<T, U>&&) = default;
 
   std::size_t auto_junk_minsize() const { return auto_junk_minsize_; }
   void set_auto_junk_minsize(std::size_t value) { auto_junk_minsize_ = value; }
 
-  void set_seq(T const& a, T const& b) {
+  void set_seq(T const& a, U const& b) {
     set_seq1(a);
     set_seq2(b);
   }
@@ -125,7 +138,7 @@ template <class T = std::string> class SequenceMatcher {
     opcodes_ = nullptr;
   }
 
-  void set_seq2(T const& b) {
+  void set_seq2(U const& b) {
     b_ = b;
     j2len_.resize(b.size()+1);
     chain_b();
@@ -146,7 +159,6 @@ template <class T = std::string> class SequenceMatcher {
     using std::begin;
     using std::end;
 
-
     size_t best_i = a_low;
     size_t best_j = b_low;
     size_t best_size = 0;
@@ -154,6 +166,11 @@ template <class T = std::string> class SequenceMatcher {
     // Find longest junk free match
     {
       for(size_t i = a_low; i < a_high; ++i) {
+        if (!CanTypeFitValue<hashable_type>(a_[i]))
+        {
+          continue;
+        }
+
         auto search = b2j_.find(a_[i]);
         if (search == b2j_.end())
         {
@@ -228,7 +245,7 @@ template <class T = std::string> class SequenceMatcher {
     low_bound_expand(true);
     high_bound_expand(true);
 
-    return make_tuple(best_i, best_j, best_size);
+    return std::make_tuple(best_i, best_j, best_size);
   }
 
   match_list_t get_matching_blocks() {
@@ -238,8 +255,8 @@ template <class T = std::string> class SequenceMatcher {
     if (matching_blocks_)
       return *matching_blocks_;
 
-    vector<tuple<size_t, size_t, size_t, size_t>> queue;
-    vector<match_t> matching_blocks_pass1;
+    std::vector<std::tuple<size_t, size_t, size_t, size_t>> queue;
+    std::vector<match_t> matching_blocks_pass1;
 
     std::size_t queue_head = 0;
     queue.reserve(std::min(a_.size(), b_.size()));
@@ -247,7 +264,7 @@ template <class T = std::string> class SequenceMatcher {
 
     while(queue_head < queue.size()) {
       size_t a_low, a_high, b_low, b_high;
-      tie(a_low, a_high, b_low, b_high) = queue[queue_head++];
+      std::tie(a_low, a_high, b_low, b_high) = queue[queue_head++];
       match_t m = find_longest_match(a_low, a_high, b_low, b_high);
       if (get<2>(m)) {
         if (a_low < get<0>(m) && b_low < get<1>(m)) {
@@ -319,8 +336,6 @@ template <class T = std::string> class SequenceMatcher {
    *  insert a[6:6] () b[5:6] (f)
    */
   chunk_list_t get_opcodes() {
-    using std::get;
-
     if (opcodes_)
       return *opcodes_;
 
@@ -364,7 +379,7 @@ template <class T = std::string> class SequenceMatcher {
 
  protected:
   T a_;
-  T b_;
+  U b_;
   junk_function_type is_junk_ = nullptr;
   std::unique_ptr<match_list_t> matching_blocks_;
   std::unique_ptr<chunk_list_t> opcodes_;
@@ -413,15 +428,15 @@ template <class T = std::string> class SequenceMatcher {
   std::vector<size_t> j2len_;
 };
 
-template <class T> auto MakeSequenceMatcher(
+template <class T, class U> auto MakeSequenceMatcher(
   T const& a
-  , T const& b
-  , typename SequenceMatcher<T>::junk_function_type is_junk = nullptr
+  , U const& b
+  , typename SequenceMatcher<T, U>::junk_function_type is_junk = nullptr
   , bool auto_junk = true
 )
--> SequenceMatcher<T>
+-> SequenceMatcher<T, U>
 {
-  return SequenceMatcher<T>(a, b, is_junk, auto_junk);
+  return SequenceMatcher<T, U>(a, b, is_junk, auto_junk);
 }
 
 }  // namespace difflib
